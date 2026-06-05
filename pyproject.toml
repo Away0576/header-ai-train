@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "header-ai-train"
+version = "0.1.0"
+description = "PyTorch AutoEncoder training and ONNX export pipeline for time-series anomaly detection."
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.0",
+    "scikit-learn>=1.3",
+    "torch>=2.3",
+    "onnx>=1.16",
+    "onnxruntime>=1.18",
+    "PyYAML>=6.0",
+]
+
+[project.scripts]
+header-ai-train = "header_ai_train.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
