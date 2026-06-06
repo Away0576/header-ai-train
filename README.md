@@ -293,6 +293,7 @@ artifacts/validation_report.json
 2. `meta.json` 中 `input_dim == window_size * feature_dim`。
 3. `meta.json` 中 `normalization.std` 不包含 `0`。
 4. `model.onnx` 的输入输出名与 `meta.json` 一致。
+5. 默认阈值使用训练误差的 P99.9，降低正常样本上的偶发误报。
 
 ## 检测效果评估
 
