@@ -294,6 +294,29 @@ artifacts/validation_report.json
 3. `meta.json` 中 `normalization.std` 不包含 `0`。
 4. `model.onnx` 的输入输出名与 `meta.json` 一致。
 
+## 检测效果评估
+
+训练完成后，可以用另一份测试数据查看每个窗口的异常分数：
+
+```powershell
+python -m header_ai_train.evaluate --artifacts-dir artifacts --input-path D:\open-datasets\NAB-sample\art_daily_no_noise.csv --input-format csv --value-column value --output-csv artifacts\evaluation_windows.csv
+```
+
+输出 CSV 包含：
+
+```text
+window_index,start_index,end_index,mse,threshold,is_anomaly
+```
+
+判断规则：
+
+```text
+mse > threshold  => is_anomaly = True
+mse <= threshold => is_anomaly = False
+```
+
+这份报告用于观察正常/异常测试数据的重构误差分布。当前版本只输出逐窗口结果，不计算 precision、recall 或 F1。
+
 ## 版本推进顺序
 
 详细版本拆分见：

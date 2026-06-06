@@ -316,6 +316,26 @@
 下一步：
 1. 代码审查后推送 `feature/e2e-v0.9-v0.10`。
 
+## 2026-06-06 - v0.10.1 - 测试数据窗口评估报告
+
+状态：DONE
+负责人：Codex / SESA855007
+
+变更内容：
+1. 新增 `python -m header_ai_train.evaluate` 评估命令。
+2. 支持读取 TXT/CSV 单变量测试数据。
+3. 使用 `model.onnx` 和 `meta.json` 对测试窗口计算 ONNX Runtime 重构 MSE。
+4. 输出逐窗口 CSV 报告，包含窗口位置、MSE、阈值和异常判断。
+5. 将项目版本推进到 `0.10.1`。
+
+验证结果：
+1. 能对 NAB 正常样本输出逐窗口评估 CSV。
+2. 报告包含 `window_index`、`start_index`、`end_index`、`mse`、`threshold` 和 `is_anomaly`。
+3. `is_anomaly` 判断规则为 `mse > threshold`。
+
+阻塞项：
+1. 无。
+
 ## 5. 待办列表
 
 | 版本 | 任务 | 状态 | 备注 |
@@ -330,3 +350,4 @@
 | v0.8.0 | ONNX Runtime 验证 | DONE | PyTorch/ONNX 对齐 |
 | v0.9.0 | 端到端训练命令 | DONE | 一条命令生成全部产物 |
 | v0.10.0 | 单变量时间序列可跑通版 | DONE | 交付 runtime |
+| v0.10.1 | 测试数据窗口评估报告 | DONE | 评估辅助工具 |
