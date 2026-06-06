@@ -170,7 +170,29 @@ training:
 
 ## AutoEncoder 训练
 
-`v0.4.0` 支持训练 MLP AutoEncoder 基线模型，并保存 PyTorch checkpoint：
+`v0.9.0` 支持一条命令完成训练、ONNX 导出和 ONNX Runtime 验证：
+
+```powershell
+header-ai-train --config configs/default.yaml
+```
+
+完整流程：
+
+```text
+load config
+  -> load data
+  -> make windows
+  -> split
+  -> normalize
+  -> train
+  -> compute threshold
+  -> write metrics.json
+  -> write meta.json
+  -> export model.onnx
+  -> validate onnx
+```
+
+如需分阶段调试，也可以单独训练 MLP AutoEncoder 基线模型：
 
 ```powershell
 python -m header_ai_train.train --config configs/default.yaml
@@ -247,6 +269,30 @@ python -m header_ai_train.validate_onnx --artifacts-dir artifacts --config confi
 ```text
 artifacts/validation_report.json
 ```
+
+## runtime 交付
+
+`v0.10.0` 是第一阶段单变量时间序列可跑通版。完整流水线通过后，交付给 `header-ai-runtime` 的文件只有：
+
+```text
+artifacts/model.onnx
+artifacts/meta.json
+```
+
+训练工程内部可保留：
+
+```text
+artifacts/model.pt
+artifacts/metrics.json
+artifacts/validation_report.json
+```
+
+交付前必须确认：
+
+1. `validation_report.json` 中 `status` 为 `passed`。
+2. `meta.json` 中 `input_dim == window_size * feature_dim`。
+3. `meta.json` 中 `normalization.std` 不包含 `0`。
+4. `model.onnx` 的输入输出名与 `meta.json` 一致。
 
 ## 版本推进顺序
 
