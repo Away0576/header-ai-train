@@ -183,6 +183,7 @@ artifacts/model.pt
 artifacts/metrics.json
 artifacts/meta.json
 artifacts/model.onnx
+artifacts/validation_report.json
 ```
 
 模型结构：
@@ -227,6 +228,24 @@ python -m header_ai_train.export_onnx --artifacts-dir artifacts
 ```text
 input:          [batch_size, input_dim]
 reconstruction: [batch_size, input_dim]
+```
+
+`v0.8.0` 支持使用 ONNX Runtime 验证 ONNX 输出与 PyTorch 输出一致：
+
+```powershell
+python -m header_ai_train.validate_onnx --artifacts-dir artifacts
+```
+
+也可以用配置文件加载真实窗口进行验证：
+
+```powershell
+python -m header_ai_train.validate_onnx --artifacts-dir artifacts --config configs/default.yaml
+```
+
+验证通过后生成：
+
+```text
+artifacts/validation_report.json
 ```
 
 ## 版本推进顺序

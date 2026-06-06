@@ -30,7 +30,7 @@ def main() -> None:
     args = parser.parse_args()
     print(f"header-ai-train {__version__}")
     print(f"Config: {args.config}")
-    print("v0.7.0 supports ONNX export from model.pt and meta.json.")
+    print("v0.8.0 supports ONNX Runtime validation against PyTorch outputs.")
 
 
 if __name__ == "__main__":
