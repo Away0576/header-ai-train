@@ -1,4 +1,4 @@
-version: "0.1.0"
+version: "0.2.0"
 
 paths:
   data_dir: data
@@ -6,6 +6,7 @@ paths:
 
 data:
   input_format: txt
+  input_path: data/train.txt
   value_column: value
   window_size: 60
   stride: 1

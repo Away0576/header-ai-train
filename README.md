@@ -111,6 +111,44 @@ D:\header-ai-train\.venv\Scripts\python.exe
 
 如果还没有 `.venv`，也可以在 PyCharm 中新建 Virtualenv，Base interpreter 选择 Python 3.12。
 
+## 数据输入
+
+`v0.2.0` 支持单变量 TXT 和 CSV 数据加载，并根据 `window_size` 和 `stride` 生成滑动窗口。
+
+TXT 示例：
+
+```text
+98.1
+98.2
+98.3
+```
+
+CSV 示例：
+
+```text
+value
+98.1
+98.2
+98.3
+```
+
+默认配置从以下路径读取 TXT 数据：
+
+```text
+data/train.txt
+```
+
+也可以在 `configs/default.yaml` 中修改：
+
+```yaml
+data:
+  input_format: txt
+  input_path: data/train.txt
+  value_column: value
+  window_size: 60
+  stride: 1
+```
+
 ## 版本推进顺序
 
 详细版本拆分见：
