@@ -203,6 +203,67 @@
 下一步：
 1. 代码审查后推送 `feature/train-pipeline-v0.4-v0.6`。
 
+## 2026-06-06 - v0.7.0 - ONNX 导出
+
+状态：DONE
+负责人：Codex / SESA855007
+
+变更内容：
+1. 实现 `load_meta`，读取并校验 `artifacts/meta.json`。
+2. 实现 `export_model_to_onnx`，从 `model.pt` 和 `meta.json` 导出 `model.onnx`。
+3. 设置 ONNX 输入输出名与 `meta.json` 一致。
+4. 设置 batch 维度为动态轴。
+5. 使用 ONNX checker 校验模型。
+6. 增加 ONNX 输入输出 shape 和名称校验。
+7. 使用 `dynamo=False` 的传统 ONNX exporter，稳定支持当前 opset 17 和 dynamic_axes 配置。
+8. 将项目版本推进到 `0.7.0`。
+
+验证结果：
+1. 能生成 `artifacts/model.onnx`。
+2. ONNX checker 通过。
+3. ONNX 输入名等于 `meta.input_name`。
+4. ONNX 输出名等于 `meta.output_name`。
+5. 输入输出 shape 为 `[batch_size, input_dim]`。
+
+问题与处理：
+1. Torch 2.12 默认 `dynamo=True` 导出路径需要 `onnxscript`，且在 Windows GBK 控制台下可能因导出日志包含非 GBK 字符失败。
+2. 当前模型是简单 MLP AutoEncoder，因此改用传统 exporter `dynamo=False`，避免新增不必要依赖。
+3. 为避免 ONNX tracing 记录 Python shape check，导出时使用 `_AutoEncoderOnnxWrapper` 包装模型。
+4. 已对已知 legacy exporter deprecation warning 做精确屏蔽，保留 ONNX checker 和输入输出校验作为有效验证。
+
+阻塞项：
+1. 无。
+
+下一步：
+1. 在当前阶段分支继续推进 `v0.8.0` ONNX Runtime 验证。
+
+## 2026-06-06 - v0.8.0 - ONNX Runtime 验证
+
+状态：DONE
+负责人：Codex / SESA855007
+
+变更内容：
+1. 实现 `validate_onnx_outputs`，比较 PyTorch 和 ONNX Runtime 输出。
+2. 实现 ONNX Runtime session 输入输出名称和 shape 校验。
+3. 计算 `max_abs_diff`、PyTorch MSE、ONNX MSE 和 MSE 差异。
+4. 实现 `write_validation_report`，生成 `artifacts/validation_report.json`。
+5. 实现 `python -m header_ai_train.validate_onnx --artifacts-dir artifacts` 命令。
+6. 支持可选 `--config` 加载真实窗口，并使用 `meta.json` 归一化参数验证。
+7. 将项目版本推进到 `0.8.0`。
+
+验证结果：
+1. `max_abs_diff < 1e-4`。
+2. PyTorch MSE 与 ONNX MSE 接近。
+3. 能生成并解析 `validation_report.json`。
+4. 超过容差时命令失败。
+5. CLI 版本输出为 `header-ai-train 0.8.0`。
+
+阻塞项：
+1. 无。
+
+下一步：
+1. 代码审查后推送 `feature/onnx-runtime-v0.7-v0.8`。
+
 ## 5. 待办列表
 
 | 版本 | 任务 | 状态 | 备注 |
@@ -213,7 +274,7 @@
 | v0.4.0 | PyTorch AutoEncoder 基线训练 | DONE | MLP AutoEncoder |
 | v0.5.0 | 重构误差与异常阈值 | DONE | 默认 P99 |
 | v0.6.0 | meta.json 生成 | DONE | runtime 合同 |
-| v0.7.0 | ONNX 导出 | TODO | checker 校验 |
-| v0.8.0 | ONNX Runtime 验证 | TODO | PyTorch/ONNX 对齐 |
+| v0.7.0 | ONNX 导出 | DONE | checker 校验 |
+| v0.8.0 | ONNX Runtime 验证 | DONE | PyTorch/ONNX 对齐 |
 | v0.9.0 | 端到端训练命令 | TODO | 一条命令生成全部产物 |
 | v0.10.0 | 单变量时间序列可跑通版 | TODO | 交付 runtime |
