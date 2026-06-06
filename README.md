@@ -170,7 +170,29 @@ training:
 
 ## AutoEncoder 训练
 
-`v0.4.0` 支持训练 MLP AutoEncoder 基线模型，并保存 PyTorch checkpoint：
+`v0.9.0` 支持一条命令完成训练、ONNX 导出和 ONNX Runtime 验证：
+
+```powershell
+header-ai-train --config configs/default.yaml
+```
+
+完整流程：
+
+```text
+load config
+  -> load data
+  -> make windows
+  -> split
+  -> normalize
+  -> train
+  -> compute threshold
+  -> write metrics.json
+  -> write meta.json
+  -> export model.onnx
+  -> validate onnx
+```
+
+如需分阶段调试，也可以单独训练 MLP AutoEncoder 基线模型：
 
 ```powershell
 python -m header_ai_train.train --config configs/default.yaml
