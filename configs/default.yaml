@@ -1,4 +1,4 @@
-version: "0.10.1"
+version: "0.10.2"
 
 paths:
   data_dir: data
@@ -26,7 +26,7 @@ training:
   random_seed: 42
 
 threshold:
-  percentile: 99.0
+  percentile: 99.9
 
 onnx:
   opset: 17
