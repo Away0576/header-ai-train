@@ -26,8 +26,10 @@ class TrainingResult:
     validation_losses: list[float]
     model_path: Path
     metrics_path: Path
+    meta_path: Path
     threshold: float
     metrics: dict[str, float]
+    meta: dict[str, Any]
     normalization: dict[str, list[float] | str]
 
 
@@ -176,6 +178,112 @@ def write_metrics(
     return metrics_path, metrics
 
 
+def build_meta(
+    config: dict[str, Any],
+    normalization: dict[str, list[float] | str],
+    threshold: float,
+    metrics: dict[str, float],
+) -> dict[str, Any]:
+    """Build the runtime metadata contract."""
+    data_config = config.get("data", {})
+    onnx_config = config.get("onnx", {})
+    alarm_config = config.get("alarm", {})
+
+    window_size = int(data_config.get("window_size", 60))
+    feature_dim = int(data_config.get("feature_dim", 1))
+    input_dim = window_size * feature_dim
+    meta = {
+        "schema_version": "1.0",
+        "model_type": "autoencoder",
+        "input_name": str(onnx_config.get("input_name", "input")),
+        "output_name": str(onnx_config.get("output_name", "reconstruction")),
+        "window_size": window_size,
+        "feature_dim": feature_dim,
+        "input_dim": input_dim,
+        "flatten_order": str(data_config.get("flatten_order", "time_major")),
+        "threshold": float(threshold),
+        "threshold_percentile": float(metrics["threshold_percentile"]),
+        "normalization": {
+            "type": str(normalization.get("type", "standard")),
+            "mean": [float(value) for value in normalization["mean"]],  # type: ignore[index]
+            "std": [float(value) for value in normalization["std"]],  # type: ignore[index]
+        },
+        "alarm": {
+            "consecutive_count": int(alarm_config.get("consecutive_count", 3)),
+            "clear_count": int(alarm_config.get("clear_count", 5)),
+        },
+        "onnx": {
+            "opset": int(onnx_config.get("opset", 17)),
+        },
+    }
+    validate_meta(meta)
+    return meta
+
+
+def validate_meta(meta: dict[str, Any]) -> None:
+    """Validate the runtime metadata contract."""
+    required_fields = {
+        "schema_version",
+        "model_type",
+        "input_name",
+        "output_name",
+        "window_size",
+        "feature_dim",
+        "input_dim",
+        "flatten_order",
+        "threshold",
+        "threshold_percentile",
+        "normalization",
+        "alarm",
+        "onnx",
+    }
+    missing = sorted(required_fields - set(meta))
+    if missing:
+        raise ValueError(f"meta is missing required fields: {', '.join(missing)}")
+
+    if not meta["input_name"]:
+        raise ValueError("meta.input_name must not be empty")
+    if not meta["output_name"]:
+        raise ValueError("meta.output_name must not be empty")
+
+    window_size = int(meta["window_size"])
+    feature_dim = int(meta["feature_dim"])
+    input_dim = int(meta["input_dim"])
+    if window_size <= 0:
+        raise ValueError(f"meta.window_size must be positive, got {window_size}")
+    if feature_dim <= 0:
+        raise ValueError(f"meta.feature_dim must be positive, got {feature_dim}")
+    if input_dim != window_size * feature_dim:
+        raise ValueError("meta.input_dim must equal window_size * feature_dim")
+    if float(meta["threshold"]) < 0.0:
+        raise ValueError("meta.threshold must be non-negative")
+
+    normalization = meta["normalization"]
+    mean = normalization.get("mean")
+    std = normalization.get("std")
+    if not isinstance(mean, list) or len(mean) != feature_dim:
+        raise ValueError("meta.normalization.mean must be a list with feature_dim values")
+    if not isinstance(std, list) or len(std) != feature_dim:
+        raise ValueError("meta.normalization.std must be a list with feature_dim values")
+    if any(float(value) == 0.0 for value in std):
+        raise ValueError("meta.normalization.std must not contain 0")
+    if not np.isfinite(np.asarray(mean, dtype=np.float64)).all():
+        raise ValueError("meta.normalization.mean must contain finite values")
+    if not np.isfinite(np.asarray(std, dtype=np.float64)).all():
+        raise ValueError("meta.normalization.std must contain finite values")
+
+
+def write_meta(meta: dict[str, Any], meta_path: Path | str) -> Path:
+    """Write runtime metadata to JSON."""
+    validate_meta(meta)
+    meta_path = Path(meta_path)
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    with meta_path.open("w", encoding="utf-8") as file:
+        json.dump(meta, file, indent=2)
+        file.write("\n")
+    return meta_path
+
+
 def save_model_checkpoint(
     model: AutoEncoder,
     model_path: Path | str,
@@ -259,14 +367,18 @@ def run_training(config: dict[str, Any], project_root: Path | str | None = None)
         threshold_percentile,
         artifacts_dir / "metrics.json",
     )
+    meta = build_meta(config, normalization, threshold, metrics)
+    meta_path = write_meta(meta, artifacts_dir / "meta.json")
     return TrainingResult(
         model=model,
         train_losses=train_losses,
         validation_losses=validation_losses,
         model_path=model_path,
         metrics_path=metrics_path,
+        meta_path=meta_path,
         threshold=threshold,
         metrics=metrics,
+        meta=meta,
         normalization=normalization,
     )
 
@@ -298,6 +410,7 @@ def main() -> None:
     result = run_training(load_config(config_path), project_root=Path.cwd())
     print(f"Saved model checkpoint: {result.model_path}")
     print(f"Saved metrics: {result.metrics_path}")
+    print(f"Saved meta: {result.meta_path}")
     print(f"Threshold P{result.metrics['threshold_percentile']:g}: {result.threshold:.6f}")
 
 

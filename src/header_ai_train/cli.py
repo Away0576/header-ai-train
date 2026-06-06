@@ -30,7 +30,7 @@ def main() -> None:
     args = parser.parse_args()
     print(f"header-ai-train {__version__}")
     print(f"Config: {args.config}")
-    print("v0.5.0 supports reconstruction error metrics and percentile anomaly threshold output.")
+    print("v0.6.0 supports runtime meta.json contract generation.")
 
 
 if __name__ == "__main__":

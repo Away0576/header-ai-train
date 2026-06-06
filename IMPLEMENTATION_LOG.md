@@ -178,6 +178,31 @@
 下一步：
 1. 在当前阶段分支继续推进 `v0.6.0` meta.json 生成。
 
+## 2026-06-06 - v0.6.0 - meta.json 生成
+
+状态：DONE
+负责人：Codex / SESA855007
+
+变更内容：
+1. 实现 `build_meta`，生成 runtime 可读取的部署合同字段。
+2. 实现 `validate_meta`，校验必填字段、输入输出名、维度关系和归一化参数。
+3. 实现 `write_meta`，输出 `artifacts/meta.json`。
+4. 在训练流程中生成 `model.pt`、`metrics.json` 和 `meta.json`。
+5. 将项目版本推进到 `0.6.0`。
+
+验证结果：
+1. `input_dim == window_size * feature_dim`。
+2. `normalization.std` 不含 0。
+3. `input_name/output_name` 非空。
+4. `meta.json` 可 JSON 解析。
+5. CLI 版本输出为 `header-ai-train 0.6.0`。
+
+阻塞项：
+1. 无。
+
+下一步：
+1. 代码审查后推送 `feature/train-pipeline-v0.4-v0.6`。
+
 ## 5. 待办列表
 
 | 版本 | 任务 | 状态 | 备注 |
@@ -187,7 +212,7 @@
 | v0.3.0 | 归一化与数据集划分 | DONE | StandardScaler |
 | v0.4.0 | PyTorch AutoEncoder 基线训练 | DONE | MLP AutoEncoder |
 | v0.5.0 | 重构误差与异常阈值 | DONE | 默认 P99 |
-| v0.6.0 | meta.json 生成 | TODO | runtime 合同 |
+| v0.6.0 | meta.json 生成 | DONE | runtime 合同 |
 | v0.7.0 | ONNX 导出 | TODO | checker 校验 |
 | v0.8.0 | ONNX Runtime 验证 | TODO | PyTorch/ONNX 对齐 |
 | v0.9.0 | 端到端训练命令 | TODO | 一条命令生成全部产物 |

@@ -181,6 +181,7 @@ python -m header_ai_train.train --config configs/default.yaml
 ```text
 artifacts/model.pt
 artifacts/metrics.json
+artifacts/meta.json
 ```
 
 模型结构：
@@ -211,6 +212,8 @@ Input(input_dim)
   "threshold_percentile": 99.0
 }
 ```
+
+`v0.6.0` 会生成 runtime 合同文件 `meta.json`，包含输入输出名、窗口参数、归一化参数、异常阈值、报警默认参数和 ONNX opset。runtime 工程后续只应依赖 `model.onnx` 和 `meta.json`。
 
 ## 版本推进顺序
 
