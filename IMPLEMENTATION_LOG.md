@@ -153,6 +153,31 @@
 下一步：
 1. 在当前阶段分支继续推进 `v0.5.0` 重构误差与异常阈值。
 
+## 2026-06-06 - v0.5.0 - 重构误差与异常阈值
+
+状态：DONE
+负责人：Codex / SESA855007
+
+变更内容：
+1. 实现 `compute_reconstruction_errors`，输出每个训练窗口的 MSE。
+2. 实现 `compute_threshold`，按配置百分位数计算异常阈值。
+3. 实现 `build_metrics` 和 `write_metrics`，生成 `artifacts/metrics.json`。
+4. 在训练流程中保存 `model.pt` 后计算训练窗口误差、阈值和指标。
+5. 将项目版本推进到 `0.5.0`。
+
+验证结果：
+1. 误差数组长度等于训练窗口数量。
+2. `threshold >= 0`。
+3. `metrics.json` 可 JSON 解析。
+4. `metrics.json` 包含 min、max、mean、p95、p99、threshold 和 threshold_percentile。
+5. CLI 版本输出为 `header-ai-train 0.5.0`。
+
+阻塞项：
+1. 无。
+
+下一步：
+1. 在当前阶段分支继续推进 `v0.6.0` meta.json 生成。
+
 ## 5. 待办列表
 
 | 版本 | 任务 | 状态 | 备注 |
@@ -161,7 +186,7 @@
 | v0.2.0 | 数据加载与滑动窗口 | DONE | 支持 TXT/CSV 单变量 |
 | v0.3.0 | 归一化与数据集划分 | DONE | StandardScaler |
 | v0.4.0 | PyTorch AutoEncoder 基线训练 | DONE | MLP AutoEncoder |
-| v0.5.0 | 重构误差与异常阈值 | TODO | 默认 P99 |
+| v0.5.0 | 重构误差与异常阈值 | DONE | 默认 P99 |
 | v0.6.0 | meta.json 生成 | TODO | runtime 合同 |
 | v0.7.0 | ONNX 导出 | TODO | checker 校验 |
 | v0.8.0 | ONNX Runtime 验证 | TODO | PyTorch/ONNX 对齐 |

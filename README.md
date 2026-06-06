@@ -180,6 +180,7 @@ python -m header_ai_train.train --config configs/default.yaml
 
 ```text
 artifacts/model.pt
+artifacts/metrics.json
 ```
 
 模型结构：
@@ -196,6 +197,20 @@ Input(input_dim)
 ```
 
 `model.pt` 仅供训练工程内部使用，不作为 runtime 交付产物。
+
+`v0.5.0` 会在正常训练窗口上计算每个窗口的重构 MSE，并按 `threshold.percentile` 计算异常阈值。`metrics.json` 包含误差分布统计和最终阈值：
+
+```json
+{
+  "error_min": 0.0,
+  "error_max": 0.0,
+  "error_mean": 0.0,
+  "error_p95": 0.0,
+  "error_p99": 0.0,
+  "threshold": 0.0,
+  "threshold_percentile": 99.0
+}
+```
 
 ## 版本推进顺序
 

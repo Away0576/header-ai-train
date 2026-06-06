@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from header_ai_train import __version__
 from header_ai_train.dataset import load_dataset, prepare_train_validation
-from header_ai_train.model import AutoEncoder, build_autoencoder
+from header_ai_train.model import AutoEncoder
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,9 @@ class TrainingResult:
     train_losses: list[float]
     validation_losses: list[float]
     model_path: Path
+    metrics_path: Path
+    threshold: float
+    metrics: dict[str, float]
     normalization: dict[str, list[float] | str]
 
 
@@ -109,6 +113,69 @@ def evaluate_reconstruction_loss(model: AutoEncoder, windows_norm: np.ndarray) -
     return loss_value
 
 
+def compute_reconstruction_errors(model: AutoEncoder, windows_norm: np.ndarray) -> np.ndarray:
+    """Compute per-window reconstruction MSE values."""
+    windows_norm = _as_training_windows(windows_norm, model.input_dim, "windows_norm")
+    model.eval()
+    with torch.no_grad():
+        inputs = torch.from_numpy(windows_norm)
+        reconstruction = model(inputs)
+        errors = torch.mean((reconstruction - inputs) ** 2, dim=1)
+    errors_array = errors.cpu().numpy().astype(np.float32)
+    if len(errors_array) != len(windows_norm):
+        raise ValueError("Reconstruction error count does not match window count")
+    if not np.isfinite(errors_array).all():
+        raise ValueError("Reconstruction errors contain NaN or infinite values")
+    return errors_array
+
+
+def compute_threshold(errors: np.ndarray, percentile: float) -> float:
+    """Compute anomaly threshold from reconstruction errors."""
+    errors = _as_error_array(errors)
+    if not 0.0 <= percentile <= 100.0:
+        raise ValueError(f"percentile must be in [0.0, 100.0], got {percentile}")
+    threshold = float(np.percentile(errors, percentile))
+    if threshold < 0.0:
+        raise ValueError(f"threshold must be non-negative, got {threshold}")
+    if not np.isfinite(threshold):
+        raise ValueError("threshold is not finite")
+    return threshold
+
+
+def build_metrics(errors: np.ndarray, threshold: float, threshold_percentile: float) -> dict[str, float]:
+    """Build JSON-serializable reconstruction error metrics."""
+    errors = _as_error_array(errors)
+    metrics = {
+        "error_min": float(np.min(errors)),
+        "error_max": float(np.max(errors)),
+        "error_mean": float(np.mean(errors, dtype=np.float64)),
+        "error_p95": float(np.percentile(errors, 95.0)),
+        "error_p99": float(np.percentile(errors, 99.0)),
+        "threshold": float(threshold),
+        "threshold_percentile": float(threshold_percentile),
+    }
+    for name, value in metrics.items():
+        if not np.isfinite(value):
+            raise ValueError(f"Metric {name} is not finite")
+    return metrics
+
+
+def write_metrics(
+    errors: np.ndarray,
+    threshold: float,
+    threshold_percentile: float,
+    metrics_path: Path | str,
+) -> tuple[Path, dict[str, float]]:
+    """Write reconstruction metrics to JSON."""
+    metrics_path = Path(metrics_path)
+    metrics_path.parent.mkdir(parents=True, exist_ok=True)
+    metrics = build_metrics(errors, threshold, threshold_percentile)
+    with metrics_path.open("w", encoding="utf-8") as file:
+        json.dump(metrics, file, indent=2)
+        file.write("\n")
+    return metrics_path, metrics
+
+
 def save_model_checkpoint(
     model: AutoEncoder,
     model_path: Path | str,
@@ -150,7 +217,7 @@ def load_model_checkpoint(model_path: Path | str) -> tuple[AutoEncoder, dict[str
 
 
 def run_training(config: dict[str, Any], project_root: Path | str | None = None) -> TrainingResult:
-    """Run v0.4 training from config and save artifacts/model.pt."""
+    """Run training from config and save model/metrics artifacts."""
     project_root = Path.cwd() if project_root is None else Path(project_root)
     windows = load_dataset(config, project_root=project_root)
 
@@ -183,11 +250,23 @@ def run_training(config: dict[str, Any], project_root: Path | str | None = None)
         train_losses=train_losses,
         validation_losses=validation_losses,
     )
+    threshold_percentile = float(config.get("threshold", {}).get("percentile", 99.0))
+    errors = compute_reconstruction_errors(model, train_windows_norm)
+    threshold = compute_threshold(errors, threshold_percentile)
+    metrics_path, metrics = write_metrics(
+        errors,
+        threshold,
+        threshold_percentile,
+        artifacts_dir / "metrics.json",
+    )
     return TrainingResult(
         model=model,
         train_losses=train_losses,
         validation_losses=validation_losses,
         model_path=model_path,
+        metrics_path=metrics_path,
+        threshold=threshold,
+        metrics=metrics,
         normalization=normalization,
     )
 
@@ -206,7 +285,7 @@ def load_config(path: Path | str) -> dict[str, Any]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m header_ai_train.train",
-        description="Train the v0.4 PyTorch AutoEncoder baseline.",
+        description="Train the PyTorch AutoEncoder baseline and compute reconstruction metrics.",
     )
     parser.add_argument("--config", default="configs/default.yaml", help="Path to the training config file.")
     return parser
@@ -218,6 +297,8 @@ def main() -> None:
     config_path = Path(args.config)
     result = run_training(load_config(config_path), project_root=Path.cwd())
     print(f"Saved model checkpoint: {result.model_path}")
+    print(f"Saved metrics: {result.metrics_path}")
+    print(f"Threshold P{result.metrics['threshold_percentile']:g}: {result.threshold:.6f}")
 
 
 def _as_training_windows(windows: np.ndarray, input_dim: int, name: str) -> np.ndarray:
@@ -231,6 +312,19 @@ def _as_training_windows(windows: np.ndarray, input_dim: int, name: str) -> np.n
     if not np.isfinite(windows).all():
         raise ValueError(f"{name} contains NaN or infinite values")
     return np.ascontiguousarray(windows, dtype=np.float32)
+
+
+def _as_error_array(errors: np.ndarray) -> np.ndarray:
+    errors = np.asarray(errors, dtype=np.float32)
+    if errors.ndim != 1:
+        raise ValueError(f"errors must be one-dimensional, got shape {errors.shape}")
+    if errors.size == 0:
+        raise ValueError("errors must contain at least one value")
+    if not np.isfinite(errors).all():
+        raise ValueError("errors contain NaN or infinite values")
+    if np.any(errors < 0.0):
+        raise ValueError("errors must be non-negative")
+    return errors
 
 
 def _set_random_seed(random_seed: int) -> None:
