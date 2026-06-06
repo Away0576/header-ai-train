@@ -270,6 +270,30 @@ python -m header_ai_train.validate_onnx --artifacts-dir artifacts --config confi
 artifacts/validation_report.json
 ```
 
+## runtime 交付
+
+`v0.10.0` 是第一阶段单变量时间序列可跑通版。完整流水线通过后，交付给 `header-ai-runtime` 的文件只有：
+
+```text
+artifacts/model.onnx
+artifacts/meta.json
+```
+
+训练工程内部可保留：
+
+```text
+artifacts/model.pt
+artifacts/metrics.json
+artifacts/validation_report.json
+```
+
+交付前必须确认：
+
+1. `validation_report.json` 中 `status` 为 `passed`。
+2. `meta.json` 中 `input_dim == window_size * feature_dim`。
+3. `meta.json` 中 `normalization.std` 不包含 `0`。
+4. `model.onnx` 的输入输出名与 `meta.json` 一致。
+
 ## 版本推进顺序
 
 详细版本拆分见：

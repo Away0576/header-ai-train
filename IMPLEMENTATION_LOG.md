@@ -289,6 +289,33 @@
 下一步：
 1. 在当前阶段分支继续推进 `v0.10.0` 单变量时间序列可跑通版验收。
 
+## 2026-06-06 - v0.10.0 - 单变量时间序列可跑通版
+
+状态：DONE
+负责人：Codex / SESA855007
+
+变更内容：
+1. 将第一阶段能力收口为单变量时间序列可交付版本。
+2. 在端到端流水线末尾增加 runtime 交付产物校验。
+3. 校验 `model.onnx`、`meta.json` 和 `validation_report.json` 存在。
+4. 重新校验 `meta.json` 合同，并确认 `validation_report.json` 状态为 `passed`。
+5. 更新 README，明确 runtime 只交付 `model.onnx` 和 `meta.json`。
+6. 将项目版本推进到 `0.10.0`。
+
+验证结果：
+1. 单变量 TXT 数据端到端训练通过。
+2. 生成 `artifacts/model.onnx` 和 `artifacts/meta.json`。
+3. 生成 `artifacts/model.pt`、`artifacts/metrics.json` 和 `artifacts/validation_report.json`。
+4. `validation_report.json` 验证通过。
+5. `meta.json` 合同校验通过。
+6. CLI 版本输出为 `header-ai-train 0.10.0`。
+
+阻塞项：
+1. 无。
+
+下一步：
+1. 代码审查后推送 `feature/e2e-v0.9-v0.10`。
+
 ## 5. 待办列表
 
 | 版本 | 任务 | 状态 | 备注 |
@@ -302,4 +329,4 @@
 | v0.7.0 | ONNX 导出 | DONE | checker 校验 |
 | v0.8.0 | ONNX Runtime 验证 | DONE | PyTorch/ONNX 对齐 |
 | v0.9.0 | 端到端训练命令 | DONE | 一条命令生成全部产物 |
-| v0.10.0 | 单变量时间序列可跑通版 | TODO | 交付 runtime |
+| v0.10.0 | 单变量时间序列可跑通版 | DONE | 交付 runtime |
