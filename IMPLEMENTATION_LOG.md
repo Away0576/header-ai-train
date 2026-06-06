@@ -100,13 +100,39 @@
 下一步：
 1. 开始 `v0.3.0` 归一化与数据集划分实现。
 
+## 2026-06-06 - v0.3.0 - 归一化与数据集划分
+
+状态：DONE
+负责人：Codex / SESA855007
+
+变更内容：
+1. 实现 `split_train_validation`，支持固定随机种子的确定性训练/验证划分。
+2. 实现 `fit_standard_scaler`，只基于训练窗口计算单变量 `mean/std`。
+3. 实现 `transform_standard`，使用同一组 `mean/std` 归一化训练集和验证集。
+4. 实现 `prepare_train_validation`，串联划分、拟合归一化参数和转换流程。
+5. 增加 `std == 0`、非法验证比例、空窗口和非有限值校验。
+6. 将项目版本推进到 `0.3.0`。
+
+验证结果：
+1. 相同输入和随机种子下，训练/验证划分一致。
+2. `mean/std` 为 JSON 可序列化数组。
+3. 归一化输出 dtype 为 `float32`。
+4. `std == 0` 时明确报错。
+5. CLI 版本输出为 `header-ai-train 0.3.0`。
+
+阻塞项：
+1. 无。
+
+下一步：
+1. 开始 `v0.4.0` PyTorch AutoEncoder 基线训练实现。
+
 ## 5. 待办列表
 
 | 版本 | 任务 | 状态 | 备注 |
 |---|---|---|---|
 | v0.1.0 | 工程骨架与环境配置 | DONE | 环境验收通过 |
 | v0.2.0 | 数据加载与滑动窗口 | DONE | 支持 TXT/CSV 单变量 |
-| v0.3.0 | 归一化与数据集划分 | TODO | StandardScaler |
+| v0.3.0 | 归一化与数据集划分 | DONE | StandardScaler |
 | v0.4.0 | PyTorch AutoEncoder 基线训练 | TODO | MLP AutoEncoder |
 | v0.5.0 | 重构误差与异常阈值 | TODO | 默认 P99 |
 | v0.6.0 | meta.json 生成 | TODO | runtime 合同 |

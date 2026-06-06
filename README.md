@@ -149,6 +149,25 @@ data:
   stride: 1
 ```
 
+## 训练前预处理
+
+`v0.3.0` 支持训练集/验证集划分和 StandardScaler 归一化。
+
+默认配置：
+
+```yaml
+training:
+  validation_split: 0.2
+  random_seed: 42
+```
+
+处理顺序：
+
+1. 先对滑动窗口按 `random_seed` 做确定性划分。
+2. 只使用训练窗口计算 `mean/std`。
+3. 使用同一组 `mean/std` 归一化训练集和验证集。
+4. `mean/std` 使用 JSON 数组保存，供后续 `meta.json` 写入。
+
 ## 版本推进顺序
 
 详细版本拆分见：
