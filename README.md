@@ -182,6 +182,7 @@ python -m header_ai_train.train --config configs/default.yaml
 artifacts/model.pt
 artifacts/metrics.json
 artifacts/meta.json
+artifacts/model.onnx
 ```
 
 模型结构：
@@ -214,6 +215,19 @@ Input(input_dim)
 ```
 
 `v0.6.0` 会生成 runtime 合同文件 `meta.json`，包含输入输出名、窗口参数、归一化参数、异常阈值、报警默认参数和 ONNX opset。runtime 工程后续只应依赖 `model.onnx` 和 `meta.json`。
+
+`v0.7.0` 支持根据 `model.pt` 和 `meta.json` 导出 ONNX：
+
+```powershell
+python -m header_ai_train.export_onnx --artifacts-dir artifacts
+```
+
+导出的 ONNX 输入输出名来自 `meta.json`，输入输出 shape 为：
+
+```text
+input:          [batch_size, input_dim]
+reconstruction: [batch_size, input_dim]
+```
 
 ## 版本推进顺序
 

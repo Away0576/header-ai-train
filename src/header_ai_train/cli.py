@@ -30,7 +30,7 @@ def main() -> None:
     args = parser.parse_args()
     print(f"header-ai-train {__version__}")
     print(f"Config: {args.config}")
-    print("v0.6.0 supports runtime meta.json contract generation.")
+    print("v0.7.0 supports ONNX export from model.pt and meta.json.")
 
 
 if __name__ == "__main__":
