@@ -168,6 +168,53 @@ training:
 3. 使用同一组 `mean/std` 归一化训练集和验证集。
 4. `mean/std` 使用 JSON 数组保存，供后续 `meta.json` 写入。
 
+## AutoEncoder 训练
+
+`v0.4.0` 支持训练 MLP AutoEncoder 基线模型，并保存 PyTorch checkpoint：
+
+```powershell
+python -m header_ai_train.train --config configs/default.yaml
+```
+
+当前阶段输出：
+
+```text
+artifacts/model.pt
+artifacts/metrics.json
+artifacts/meta.json
+```
+
+模型结构：
+
+```text
+Input(input_dim)
+  -> Linear(input_dim, hidden_dim)
+  -> ReLU
+  -> Linear(hidden_dim, latent_dim)
+  -> ReLU
+  -> Linear(latent_dim, hidden_dim)
+  -> ReLU
+  -> Linear(hidden_dim, input_dim)
+```
+
+`model.pt` 仅供训练工程内部使用，不作为 runtime 交付产物。
+
+`v0.5.0` 会在正常训练窗口上计算每个窗口的重构 MSE，并按 `threshold.percentile` 计算异常阈值。`metrics.json` 包含误差分布统计和最终阈值：
+
+```json
+{
+  "error_min": 0.0,
+  "error_max": 0.0,
+  "error_mean": 0.0,
+  "error_p95": 0.0,
+  "error_p99": 0.0,
+  "threshold": 0.0,
+  "threshold_percentile": 99.0
+}
+```
+
+`v0.6.0` 会生成 runtime 合同文件 `meta.json`，包含输入输出名、窗口参数、归一化参数、异常阈值、报警默认参数和 ONNX opset。runtime 工程后续只应依赖 `model.onnx` 和 `meta.json`。
+
 ## 版本推进顺序
 
 详细版本拆分见：

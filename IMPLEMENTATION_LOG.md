@@ -126,6 +126,83 @@
 下一步：
 1. 开始 `v0.4.0` PyTorch AutoEncoder 基线训练实现。
 
+## 2026-06-06 - v0.4.0 - PyTorch AutoEncoder 基线训练
+
+状态：DONE
+负责人：Codex / SESA855007
+
+变更内容：
+1. 实现 `AutoEncoder(input_dim, hidden_dim, latent_dim)` MLP 基线模型。
+2. 实现模型输入维度校验，输入输出 shape 均为 `[batch_size, input_dim]`。
+3. 实现 `train_autoencoder`，使用 DataLoader、MSELoss 和 Adam 训练。
+4. 实现训练 loss 和验证 loss 日志输出。
+5. 实现 `save_model_checkpoint` 和 `load_model_checkpoint`。
+6. 实现 `python -m header_ai_train.train --config configs/default.yaml` 阶段性训练入口。
+7. 将项目版本推进到 `0.4.0`。
+
+验证结果：
+1. 模型输入输出 shape 验证通过。
+2. 使用合成正常窗口完成至少 1 个 epoch 训练。
+3. 训练 loss 为有限值。
+4. 能保存并重新加载 `model.pt`。
+5. CLI 版本输出为 `header-ai-train 0.4.0`。
+
+阻塞项：
+1. 无。
+
+下一步：
+1. 在当前阶段分支继续推进 `v0.5.0` 重构误差与异常阈值。
+
+## 2026-06-06 - v0.5.0 - 重构误差与异常阈值
+
+状态：DONE
+负责人：Codex / SESA855007
+
+变更内容：
+1. 实现 `compute_reconstruction_errors`，输出每个训练窗口的 MSE。
+2. 实现 `compute_threshold`，按配置百分位数计算异常阈值。
+3. 实现 `build_metrics` 和 `write_metrics`，生成 `artifacts/metrics.json`。
+4. 在训练流程中保存 `model.pt` 后计算训练窗口误差、阈值和指标。
+5. 将项目版本推进到 `0.5.0`。
+
+验证结果：
+1. 误差数组长度等于训练窗口数量。
+2. `threshold >= 0`。
+3. `metrics.json` 可 JSON 解析。
+4. `metrics.json` 包含 min、max、mean、p95、p99、threshold 和 threshold_percentile。
+5. CLI 版本输出为 `header-ai-train 0.5.0`。
+
+阻塞项：
+1. 无。
+
+下一步：
+1. 在当前阶段分支继续推进 `v0.6.0` meta.json 生成。
+
+## 2026-06-06 - v0.6.0 - meta.json 生成
+
+状态：DONE
+负责人：Codex / SESA855007
+
+变更内容：
+1. 实现 `build_meta`，生成 runtime 可读取的部署合同字段。
+2. 实现 `validate_meta`，校验必填字段、输入输出名、维度关系和归一化参数。
+3. 实现 `write_meta`，输出 `artifacts/meta.json`。
+4. 在训练流程中生成 `model.pt`、`metrics.json` 和 `meta.json`。
+5. 将项目版本推进到 `0.6.0`。
+
+验证结果：
+1. `input_dim == window_size * feature_dim`。
+2. `normalization.std` 不含 0。
+3. `input_name/output_name` 非空。
+4. `meta.json` 可 JSON 解析。
+5. CLI 版本输出为 `header-ai-train 0.6.0`。
+
+阻塞项：
+1. 无。
+
+下一步：
+1. 代码审查后推送 `feature/train-pipeline-v0.4-v0.6`。
+
 ## 5. 待办列表
 
 | 版本 | 任务 | 状态 | 备注 |
@@ -133,9 +210,9 @@
 | v0.1.0 | 工程骨架与环境配置 | DONE | 环境验收通过 |
 | v0.2.0 | 数据加载与滑动窗口 | DONE | 支持 TXT/CSV 单变量 |
 | v0.3.0 | 归一化与数据集划分 | DONE | StandardScaler |
-| v0.4.0 | PyTorch AutoEncoder 基线训练 | TODO | MLP AutoEncoder |
-| v0.5.0 | 重构误差与异常阈值 | TODO | 默认 P99 |
-| v0.6.0 | meta.json 生成 | TODO | runtime 合同 |
+| v0.4.0 | PyTorch AutoEncoder 基线训练 | DONE | MLP AutoEncoder |
+| v0.5.0 | 重构误差与异常阈值 | DONE | 默认 P99 |
+| v0.6.0 | meta.json 生成 | DONE | runtime 合同 |
 | v0.7.0 | ONNX 导出 | TODO | checker 校验 |
 | v0.8.0 | ONNX Runtime 验证 | TODO | PyTorch/ONNX 对齐 |
 | v0.9.0 | 端到端训练命令 | TODO | 一条命令生成全部产物 |
