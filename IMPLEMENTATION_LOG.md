@@ -48,7 +48,7 @@
 
 ## 2026-06-05 - v0.1.0 - 训练工程基础初始化
 
-状态：IN_PROGRESS
+状态：DONE
 负责人：Copilot / SESA855007
 
 变更内容：
@@ -63,25 +63,23 @@
 9. 新增实施日志 `IMPLEMENTATION_LOG.md`。
 
 验证结果：
-1. 当前机器只检测到 Python 3.14。
-2. Python 3.14 可运行基础 CLI 源码入口。
-3. Python 3.12 尚未安装成功，因此 `.venv` 和完整依赖安装未完成。
+1. 当前机器检测到 Python 3.14、Python 3.12、Python 3.11 和 Python 3.9。
+2. 已安装 Python 3.12.10。
+3. 已创建 `.venv`，虚拟环境使用 Python 3.12.10。
+4. 已完成依赖安装，关键依赖包括 torch、onnx、onnxruntime、numpy、pandas、scikit-learn 和 PyYAML。
+5. `.\scripts\verify_env.ps1` 验证通过。
 
 阻塞项：
-1. 需要安装 Python 3.12 x64。
-2. 公司网络下载 Python 官方安装包速度异常慢。
+1. 无。
 
 下一步：
-1. 安装 Python 3.12。
-2. 执行 `.\scripts\setup_env.ps1`。
-3. 执行 `.\scripts\verify_env.ps1`。
-4. 完成 `v0.1.0` 环境验收。
+1. 开始 `v0.2.0` 数据加载与滑动窗口实现。
 
 ## 5. 待办列表
 
 | 版本 | 任务 | 状态 | 备注 |
 |---|---|---|---|
-| v0.1.0 | 工程骨架与环境配置 | IN_PROGRESS | 等待 Python 3.12 |
+| v0.1.0 | 工程骨架与环境配置 | DONE | 环境验收通过 |
 | v0.2.0 | 数据加载与滑动窗口 | TODO | 支持 TXT/CSV 单变量 |
 | v0.3.0 | 归一化与数据集划分 | TODO | StandardScaler |
 | v0.4.0 | PyTorch AutoEncoder 基线训练 | TODO | MLP AutoEncoder |

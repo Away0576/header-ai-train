@@ -68,17 +68,17 @@ Python 3.12
 允许范围：
 
 ```text
-Python >= 3.10, < 3.14
+Python >= 3.10, < 3.13
 ```
 
-当前不建议使用 Python 3.14，因为 PyTorch、ONNX Runtime 等训练依赖可能尚未完整支持。
+当前不建议使用 Python 3.13 或 Python 3.14，因为 PyTorch、ONNX Runtime 等训练依赖可能尚未完整支持。
 
 ## 本地环境初始化
 
 Windows PowerShell：
 
 ```powershell
-cd C:\Users\SESA855007\header-ai-train
+cd D:\header-ai-train
 .\scripts\setup_env.ps1
 .\scripts\verify_env.ps1
 ```
@@ -100,13 +100,13 @@ PyCharm 不需要 Anaconda。推荐使用本项目的 `.venv`：
 
 1. 先安装 Python 3.12。
 2. 在 PowerShell 中运行 `.\scripts\setup_env.ps1`。
-3. PyCharm 打开 `C:\Users\SESA855007\header-ai-train`。
+3. PyCharm 打开本项目根目录。
 4. 进入 `Settings -> Project -> Python Interpreter`。
 5. 选择 `Existing environment`。
 6. 解释器路径选择：
 
 ```text
-C:\Users\SESA855007\header-ai-train\.venv\Scripts\python.exe
+D:\header-ai-train\.venv\Scripts\python.exe
 ```
 
 如果还没有 `.venv`，也可以在 PyCharm 中新建 Virtualenv，Base interpreter 选择 Python 3.12。
