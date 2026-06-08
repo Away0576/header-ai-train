@@ -356,6 +356,48 @@
 阻塞项：
 1. 无。
 
+## 2026-06-08 - v0.10.2 - 环境配置与 NAB 端到端验证
+
+状态：DONE
+负责人：Copilot / SESA855007
+
+变更内容：
+1. 完善本地 `.venv` 环境，使用 Python `3.12.10`。
+2. 安装并验证核心依赖：`numpy`、`pandas`、`PyYAML`、`onnx`、`onnxruntime`、`torch 2.12.0+cpu`、`scikit-learn`。
+3. 使用公开 NAB 样本进行端到端验证。
+4. 使用 `art_daily_no_noise.csv` 作为正常训练样本。
+5. 使用 `art_daily_jumpsup.csv` 作为异常评估样本。
+6. 生成 NAB 实验产物到 `artifacts/nab/`。
+7. 新增 `NAB_EVALUATION.md`，记录数据来源、训练命令、产物、指标、ONNX 验证和评估结果。
+
+验证结果：
+1. `.\scripts\verify_env.ps1` 通过。
+2. `header-ai-train --config artifacts\nab_config.yaml` 端到端运行成功。
+3. 生成 `artifacts/nab/model.pt`、`model.onnx`、`meta.json`、`metrics.json`、`validation_report.json`。
+4. ONNX Runtime 验证通过，`max_abs_diff = 0.0`。
+5. 训练 loss 从 `0.251689` 下降到 `0.001656`。
+6. 验证 loss 最终为 `0.001808`。
+7. 阈值为 `0.009978564456105232`，阈值策略为 P99.9。
+8. 正常样本 `art_daily_no_noise.csv`：`3973` 个窗口，异常窗口数 `0`，异常率 `0.00%`。
+9. 异常样本 `art_daily_jumpsup.csv`：`3973` 个窗口，异常窗口数 `2013`，异常率 `50.67%`。
+10. 异常样本最大 MSE 为 `1.0713998079`，明显高于阈值。
+
+产物路径：
+1. `artifacts/nab/model.onnx`
+2. `artifacts/nab/meta.json`
+3. `artifacts/nab/metrics.json`
+4. `artifacts/nab/validation_report.json`
+5. `artifacts/nab/evaluation_no_noise.csv`
+6. `artifacts/nab/evaluation_jumpsup.csv`
+
+阻塞项：
+1. 直接访问 `raw.githubusercontent.com` 下载 NAB 数据较慢，最终通过 GitHub 内容接口获取数据。
+
+下一步：
+1. 使用真实现场正常数据重新训练。
+2. 准备真实异常或人工注入异常数据进行评估。
+3. 将 `model.onnx + meta.json` 交给 `header-ai-runtime` 做 C++ 侧加载和推理验证。
+
 ## 5. 待办列表
 
 | 版本 | 任务 | 状态 | 备注 |
