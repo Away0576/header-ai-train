@@ -1,4 +1,16 @@
-"""Training utilities for the AutoEncoder baseline."""
+"""Training utilities for the AutoEncoder baseline.
+
+本模块负责训练侧核心逻辑：
+1. 加载配置和窗口数据；
+2. 归一化并划分 train/validation；
+3. 训练 PyTorch AutoEncoder；
+4. 计算训练窗口重构误差；
+5. 通过百分位数得到异常阈值；
+6. 写出 `model.pt`、`metrics.json`、`meta.json`。
+
+注意：`model.pt` 只供训练工程内部使用；runtime 交付物是 `model.onnx`
+和 `meta.json`。
+"""
 
 from __future__ import annotations
 
@@ -21,6 +33,11 @@ from header_ai_train.model import AutoEncoder
 
 @dataclass(frozen=True)
 class TrainingResult:
+    """All artifacts produced by one training run.
+
+    使用 dataclass 是为了让 CLI 后续阶段能明确拿到 model/meta/metrics 的路径，
+    避免用字符串硬编码到处传。
+    """
     model: AutoEncoder
     train_losses: list[float]
     validation_losses: list[float]
@@ -45,7 +62,11 @@ def train_autoencoder(
     random_seed: int,
     validation_windows_norm: np.ndarray | None = None,
 ) -> tuple[AutoEncoder, list[float], list[float]]:
-    """Train an AutoEncoder with MSE reconstruction loss."""
+    """Train an AutoEncoder with MSE reconstruction loss.
+
+    输入必须是已经归一化后的窗口矩阵。训练目标是让 reconstruction 接近 batch，
+    因此 loss 越小表示模型越能重构正常窗口。
+    """
     if input_dim <= 0:
         raise ValueError(f"input_dim must be positive, got {input_dim}")
     if epochs <= 0:
@@ -55,6 +76,7 @@ def train_autoencoder(
     if learning_rate <= 0.0:
         raise ValueError(f"learning_rate must be positive, got {learning_rate}")
 
+    # 固定随机种子，让模型初始化、DataLoader shuffle 尽量可复现。
     _set_random_seed(random_seed)
     train_windows_norm = _as_training_windows(train_windows_norm, input_dim, "train_windows_norm")
     if validation_windows_norm is not None and len(validation_windows_norm):
@@ -63,6 +85,7 @@ def train_autoencoder(
         validation_windows_norm = None
 
     model = AutoEncoder(input_dim=input_dim, hidden_dim=hidden_dim, latent_dim=latent_dim)
+    # AutoEncoder 异常检测常用 MSE：正常窗口应重构好，异常窗口应重构差。
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     generator = torch.Generator().manual_seed(random_seed)
@@ -116,7 +139,11 @@ def evaluate_reconstruction_loss(model: AutoEncoder, windows_norm: np.ndarray) -
 
 
 def compute_reconstruction_errors(model: AutoEncoder, windows_norm: np.ndarray) -> np.ndarray:
-    """Compute per-window reconstruction MSE values."""
+    """Compute per-window reconstruction MSE values.
+
+    返回每个窗口自己的 MSE，而不是整体平均值。阈值就是基于这组 per-window
+    errors 的分位数计算出来的。
+    """
     windows_norm = _as_training_windows(windows_norm, model.input_dim, "windows_norm")
     model.eval()
     with torch.no_grad():
@@ -132,7 +159,11 @@ def compute_reconstruction_errors(model: AutoEncoder, windows_norm: np.ndarray) 
 
 
 def compute_threshold(errors: np.ndarray, percentile: float) -> float:
-    """Compute anomaly threshold from reconstruction errors."""
+    """Compute anomaly threshold from reconstruction errors.
+
+    例如 percentile=99.9 表示：正常训练窗口中 99.9% 的误差都应低于阈值。
+    这样 runtime 中 `mse > threshold` 就可以判为异常。
+    """
     errors = _as_error_array(errors)
     if not 0.0 <= percentile <= 100.0:
         raise ValueError(f"percentile must be in [0.0, 100.0], got {percentile}")
@@ -145,7 +176,10 @@ def compute_threshold(errors: np.ndarray, percentile: float) -> float:
 
 
 def build_metrics(errors: np.ndarray, threshold: float, threshold_percentile: float) -> dict[str, float]:
-    """Build JSON-serializable reconstruction error metrics."""
+    """Build JSON-serializable reconstruction error metrics.
+
+    metrics.json 用于人工查看训练误差分布，不是 runtime 必需文件。
+    """
     errors = _as_error_array(errors)
     metrics = {
         "error_min": float(np.min(errors)),
@@ -184,7 +218,13 @@ def build_meta(
     threshold: float,
     metrics: dict[str, float],
 ) -> dict[str, Any]:
-    """Build the runtime metadata contract."""
+    """Build the runtime metadata contract.
+
+    `meta.json` 是 train 和 runtime 之间最重要的接口：
+    - runtime 用它知道窗口长度、输入维度、ONNX 输入输出名；
+    - runtime 用它执行同样的归一化；
+    - runtime 用它拿到异常阈值和报警默认参数。
+    """
     data_config = config.get("data", {})
     onnx_config = config.get("onnx", {})
     alarm_config = config.get("alarm", {})
@@ -221,7 +261,10 @@ def build_meta(
 
 
 def validate_meta(meta: dict[str, Any]) -> None:
-    """Validate the runtime metadata contract."""
+    """Validate the runtime metadata contract.
+
+    写文件前先严格校验，防止生成 runtime 无法解析或语义不完整的 meta.json。
+    """
     required_fields = {
         "schema_version",
         "model_type",
@@ -291,7 +334,11 @@ def save_model_checkpoint(
     train_losses: list[float],
     validation_losses: list[float],
 ) -> Path:
-    """Save a reloadable PyTorch model checkpoint."""
+    """Save a reloadable PyTorch model checkpoint.
+
+    checkpoint 不只保存权重，还保存 input_dim/hidden_dim/latent_dim。
+    后续导出 ONNX 时可以不用猜模型结构。
+    """
     model_path = Path(model_path)
     model_path.parent.mkdir(parents=True, exist_ok=True)
     checkpoint = {
@@ -325,7 +372,11 @@ def load_model_checkpoint(model_path: Path | str) -> tuple[AutoEncoder, dict[str
 
 
 def run_training(config: dict[str, Any], project_root: Path | str | None = None) -> TrainingResult:
-    """Run training from config and save model/metrics artifacts."""
+    """Run training from config and save model/metrics artifacts.
+
+    这是训练阶段的主函数，但它不负责 ONNX 导出和验证；这些在 CLI 的后续阶段
+    中完成，保持职责清晰。
+    """
     project_root = Path.cwd() if project_root is None else Path(project_root)
     windows = load_dataset(config, project_root=project_root)
 
@@ -359,6 +410,7 @@ def run_training(config: dict[str, Any], project_root: Path | str | None = None)
         validation_losses=validation_losses,
     )
     threshold_percentile = float(config.get("threshold", {}).get("percentile", 99.0))
+    # 阈值必须基于“正常训练窗口”的重构误差计算。
     errors = compute_reconstruction_errors(model, train_windows_norm)
     threshold = compute_threshold(errors, threshold_percentile)
     metrics_path, metrics = write_metrics(
