@@ -1,4 +1,11 @@
-"""Command line entry point for header-ai-train."""
+"""Command line entry point for the end-to-end training pipeline.
+
+`header-ai-train --config configs/default.yaml` 会串起整个训练侧流程：
+load config -> train -> write meta -> export onnx -> validate onnx -> verify artifacts
+
+这个文件只做流程编排，具体训练、导出、验证逻辑分别在 train/export_onnx/
+validate_onnx 模块中实现。
+"""
 
 from __future__ import annotations
 
@@ -45,9 +52,13 @@ def main() -> None:
         print(f"header-ai-train {__version__}")
         print(f"Config: {config_path}")
         config = _run_stage("load config", lambda: load_config(config_path))
+        # 训练阶段会生成 model.pt、metrics.json 和 meta.json。
         training_result = _run_stage("train model and write training artifacts", lambda: run_training(config, project_root=project_root))
         artifacts_dir = training_result.model_path.parent
+        # ONNX 导出阶段读取 model.pt + meta.json，确保导出模型的输入输出名
+        # 与 runtime 合同一致。
         onnx_result = _run_stage("export onnx", lambda: export_from_artifacts(artifacts_dir))
+        # ONNX Runtime 验证阶段比较 PyTorch 输出和 ONNX 输出，防止导出后模型失真。
         validation_result = _run_stage(
             "validate onnx",
             lambda: validate_from_artifacts(
@@ -77,6 +88,10 @@ def main() -> None:
 
 
 def _run_stage(stage: str, action):
+    """Run one pipeline stage and wrap failures with the stage name.
+
+    这样用户看到错误时能知道是“加载配置”“训练”“导出”还是“验证”失败。
+    """
     print(f"[{stage}] start")
     try:
         result = action()
@@ -92,6 +107,11 @@ def _verify_runtime_delivery_artifacts(
     meta_path: Path,
     validation_report_path: Path,
 ) -> dict[str, Path]:
+    """Verify the two files that runtime really needs are usable.
+
+    runtime 只需要 model.onnx + meta.json。这里额外要求 validation_report.json
+    状态为 passed，避免把未验证的 ONNX 模型交付给 C++ 工程。
+    """
     if not model_onnx_path.is_file():
         raise FileNotFoundError(f"runtime delivery artifact missing: {model_onnx_path}")
     if not meta_path.is_file():

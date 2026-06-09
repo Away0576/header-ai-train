@@ -1,4 +1,10 @@
-"""ONNX Runtime validation utilities."""
+"""ONNX Runtime validation utilities.
+
+ONNX 导出成功不等于数值结果一定正确。本模块负责把同一批归一化窗口分别
+输入 PyTorch 模型和 ONNX Runtime，比较输出差异和 MSE 差异。
+
+只有验证通过的 `model.onnx` 才应交付给 runtime 工程。
+"""
 
 from __future__ import annotations
 
@@ -22,6 +28,7 @@ DEFAULT_MAX_ABS_DIFF_TOLERANCE = 1e-4
 
 @dataclass(frozen=True)
 class OnnxValidationResult:
+    """Summary of PyTorch-vs-ONNX validation."""
     report_path: Path
     max_abs_diff: float
     pytorch_mse: float
@@ -38,17 +45,23 @@ def validate_onnx_outputs(
     *,
     max_abs_diff_tolerance: float = DEFAULT_MAX_ABS_DIFF_TOLERANCE,
 ) -> OnnxValidationResult:
-    """Compare PyTorch and ONNX Runtime outputs for the same normalized windows."""
+    """Compare PyTorch and ONNX Runtime outputs for the same normalized windows.
+
+    test_windows_norm 必须已经完成 StandardScaler 归一化，否则 MSE 不具备
+    与训练阈值比较的意义。
+    """
     meta = load_meta(meta_path)
     input_dim = int(meta["input_dim"])
     test_windows_norm = _as_validation_windows(test_windows_norm, input_dim)
 
+    # PyTorch 路径：加载训练 checkpoint，用同一批窗口得到基准输出。
     pytorch_model, _ = load_model_checkpoint(model_path)
     pytorch_model.eval()
     with torch.no_grad():
         pytorch_input = torch.from_numpy(test_windows_norm)
         pytorch_output = pytorch_model(pytorch_input).cpu().numpy()
 
+    # ONNX Runtime 路径：使用 CPUExecutionProvider，模拟嵌入式 CPU 推理。
     session = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
     _validate_session_io(session, input_name=str(meta["input_name"]), output_name=str(meta["output_name"]), input_dim=input_dim)
     onnx_output = session.run([str(meta["output_name"])], {str(meta["input_name"]): test_windows_norm})[0]
@@ -57,6 +70,7 @@ def validate_onnx_outputs(
     pytorch_mse = float(np.mean((pytorch_output - test_windows_norm) ** 2, dtype=np.float64))
     onnx_mse = float(np.mean((onnx_output - test_windows_norm) ** 2, dtype=np.float64))
     mse_abs_diff = float(abs(pytorch_mse - onnx_mse))
+    # validation_report.json 是交付前的质量门禁；CLI 会要求 status=passed。
     report = {
         "status": "passed" if max_abs_diff < max_abs_diff_tolerance else "failed",
         "max_abs_diff": max_abs_diff,
@@ -91,7 +105,11 @@ def validate_from_artifacts(
     max_windows: int = 16,
     max_abs_diff_tolerance: float = DEFAULT_MAX_ABS_DIFF_TOLERANCE,
 ) -> OnnxValidationResult:
-    """Validate artifacts/model.onnx against artifacts/model.pt."""
+    """Validate artifacts/model.onnx against artifacts/model.pt.
+
+    如果传入 config，则用真实数据窗口做验证；否则生成确定性随机窗口，主要用于
+    检查 ONNX 导出是否数值一致。
+    """
     artifacts_dir = Path(artifacts_dir)
     meta = load_meta(artifacts_dir / "meta.json")
     if config is None:
@@ -113,6 +131,7 @@ def validate_from_artifacts(
 
 
 def write_validation_report(report: dict[str, Any], report_path: Path | str) -> Path:
+    """Write validation report as JSON for human review and CLI gatekeeping."""
     report_path = Path(report_path)
     report_path.parent.mkdir(parents=True, exist_ok=True)
     with report_path.open("w", encoding="utf-8") as file:
@@ -156,6 +175,7 @@ def main() -> None:
 
 
 def _validate_session_io(session: ort.InferenceSession, *, input_name: str, output_name: str, input_dim: int) -> None:
+    """Ensure ONNX Runtime session IO matches `meta.json`."""
     inputs = session.get_inputs()
     outputs = session.get_outputs()
     if len(inputs) != 1:
@@ -173,6 +193,7 @@ def _validate_session_io(session: ort.InferenceSession, *, input_name: str, outp
 
 
 def _as_validation_windows(windows: np.ndarray, input_dim: int) -> np.ndarray:
+    """Validate normalized windows before feeding PyTorch/ONNX Runtime."""
     windows = np.asarray(windows, dtype=np.float32)
     if windows.ndim != 2:
         raise ValueError(f"test_windows_norm must have shape [num_windows, input_dim], got {windows.shape}")
@@ -186,6 +207,7 @@ def _as_validation_windows(windows: np.ndarray, input_dim: int) -> np.ndarray:
 
 
 def _make_deterministic_probe_windows(input_dim: int, max_windows: int) -> np.ndarray:
+    """Create deterministic normalized probe windows when no dataset is provided."""
     if max_windows <= 0:
         raise ValueError(f"max_windows must be positive, got {max_windows}")
     rng = np.random.default_rng(42)

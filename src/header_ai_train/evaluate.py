@@ -1,4 +1,15 @@
-"""Evaluate trained ONNX artifacts on a test time series."""
+"""Evaluate trained ONNX artifacts on a test time series.
+
+训练完成后，本模块用于“拿另一份时间序列试跑模型”：
+1. 读取 TXT/CSV 测试序列；
+2. 按 meta.json 的 window_size 切窗口；
+3. 用 meta.json 的 mean/std 归一化；
+4. 用 ONNX Runtime 推理；
+5. 计算每个窗口的 MSE；
+6. 输出逐窗口 CSV，标记 `mse > threshold` 的窗口为异常。
+
+当前版本不计算 precision/recall/F1，因为输入数据没有统一标签格式。
+"""
 
 from __future__ import annotations
 
@@ -17,6 +28,7 @@ from header_ai_train.export_onnx import load_meta
 
 @dataclass(frozen=True)
 class EvaluationResult:
+    """Summary of one evaluation run."""
     report_path: Path
     num_windows: int
     anomaly_count: int
@@ -33,7 +45,11 @@ def evaluate_series_file(
     value_column: str,
     report_path: Path | str,
 ) -> EvaluationResult:
-    """Evaluate a TXT/CSV series and write per-window anomaly scores."""
+    """Evaluate a TXT/CSV series and write per-window anomaly scores.
+
+    这个函数不重新训练模型，只消费 runtime 交付物 `model.onnx + meta.json`。
+    因此它可以提前模拟 runtime 侧的核心推理逻辑。
+    """
     artifacts_dir = Path(artifacts_dir)
     meta = load_meta(artifacts_dir / "meta.json")
     input_format = input_format.lower()
@@ -44,7 +60,9 @@ def evaluate_series_file(
     else:
         raise ValueError(f"Unsupported input_format {input_format!r}; expected txt or csv")
 
+    # 评估时使用训练时写入 meta.json 的窗口长度，避免人工配置不一致。
     windows = make_windows(series, window_size=int(meta["window_size"]), stride=1)
+    # 必须使用训练阶段保存的 mean/std；不能重新 fit 测试数据。
     windows_norm = transform_standard(windows, meta["normalization"]["mean"], meta["normalization"]["std"])
     scores = compute_onnx_reconstruction_errors(
         onnx_path=artifacts_dir / "model.onnx",
@@ -85,6 +103,7 @@ def compute_onnx_reconstruction_errors(
     if len(windows_norm) == 0:
         raise ValueError("windows_norm must contain at least one window")
 
+    # 这里固定 CPU provider，和后续嵌入式 Linux runtime 的默认路径保持一致。
     session = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
     input_name = str(meta["input_name"])
     output_name = str(meta["output_name"])
@@ -103,7 +122,11 @@ def write_evaluation_report(
     window_size: int,
     stride: int,
 ) -> Path:
-    """Write per-window scores and anomaly decisions to CSV."""
+    """Write per-window scores and anomaly decisions to CSV.
+
+    start_index/end_index 表示该窗口在原始序列中的覆盖范围，便于后续把异常窗口
+    映射回原始时间轴。
+    """
     report_path = Path(report_path)
     report_path.parent.mkdir(parents=True, exist_ok=True)
     with report_path.open("w", encoding="utf-8", newline="") as file:

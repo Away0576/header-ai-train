@@ -1,4 +1,16 @@
-"""Dataset loading and sliding-window utilities."""
+"""Dataset loading, sliding-window generation, and normalization utilities.
+
+本模块对应训练流程的前半段：
+
+raw TXT/CSV time series
+  -> one-dimensional float array
+  -> sliding windows [num_windows, window_size]
+  -> train/validation split
+  -> StandardScaler normalization
+
+当前 v0.10.x 只支持“单变量时间序列”。多变量传感器输入会在后续版本扩展，
+因此这里的 mean/std 都只有 1 个值。
+"""
 
 from __future__ import annotations
 
@@ -13,7 +25,15 @@ SUPPORTED_INPUT_FORMATS = {"txt", "csv"}
 
 
 def load_txt_series(path: Path | str) -> np.ndarray:
-    """Load a single-variable time series from a TXT file."""
+    """Load a single-variable time series from a TXT file.
+
+    TXT 文件格式要求每行一个数值，例如：
+        98.1
+        98.2
+        98.3
+
+    空行会被跳过；非数值内容会直接报错，避免训练数据被静默污染。
+    """
     path = Path(path)
     if not path.is_file():
         raise FileNotFoundError(f"TXT data file not found: {path}")
@@ -37,7 +57,11 @@ def load_txt_series(path: Path | str) -> np.ndarray:
 
 
 def load_csv_series(path: Path | str, value_column: str) -> np.ndarray:
-    """Load a single-variable time series from a CSV column."""
+    """Load a single-variable time series from one CSV column.
+
+    CSV 可以包含时间戳列，但模型只使用 `value_column` 指定的数值列。
+    例如 NAB 数据集格式是 `timestamp,value`，这里读取的是 `value`。
+    """
     path = Path(path)
     if not path.is_file():
         raise FileNotFoundError(f"CSV data file not found: {path}")
@@ -56,7 +80,16 @@ def load_csv_series(path: Path | str, value_column: str) -> np.ndarray:
 
 
 def make_windows(series: np.ndarray, window_size: int, stride: int) -> np.ndarray:
-    """Convert a one-dimensional series into flattened sliding windows."""
+    """Convert a one-dimensional series into flattened sliding windows.
+
+    AutoEncoder 不能直接处理无限长数据流，所以训练时先切固定长度窗口：
+
+        [x1, x2, ..., x60]
+        [x2, x3, ..., x61]
+
+    单变量情况下，窗口天然就是扁平向量，shape 为 [num_windows, window_size]。
+    runtime 的 SlidingWindow 必须使用同样的窗口长度和步长语义。
+    """
     if window_size <= 0:
         raise ValueError(f"window_size must be positive, got {window_size}")
     if stride <= 0:
@@ -66,12 +99,18 @@ def make_windows(series: np.ndarray, window_size: int, stride: int) -> np.ndarra
     if len(series) < window_size:
         raise ValueError(f"Series length {len(series)} is shorter than window_size {window_size}")
 
+    # sliding_window_view 不复制底层数据；ascontiguousarray 会把结果整理成
+    # PyTorch/ONNX Runtime 更友好的连续 float32 矩阵。
     windows = np.lib.stride_tricks.sliding_window_view(series, window_shape=window_size)[::stride]
     return np.ascontiguousarray(windows, dtype=np.float32)
 
 
 def load_dataset(config: dict[str, Any], project_root: Path | str | None = None) -> np.ndarray:
-    """Load configured data and return sliding windows with shape [num_windows, input_dim]."""
+    """Load configured data and return windows with shape [num_windows, input_dim].
+
+    这是训练入口使用的高层函数。它根据 `configs/default.yaml` 中的 data 配置
+    决定读取 TXT 还是 CSV，并负责调用 `make_windows`。
+    """
     project_root = Path.cwd() if project_root is None else Path(project_root)
     data_config = config.get("data", {})
 
@@ -96,7 +135,11 @@ def split_train_validation(
     validation_split: float,
     random_seed: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Split windows into deterministic train and validation subsets."""
+    """Split windows into deterministic train and validation subsets.
+
+    这里使用随机种子打乱窗口，保证每次训练/验证划分可复现。
+    validation_split=0 时允许没有验证集；否则必须至少产生 1 个验证窗口。
+    """
     windows = _as_valid_windows(windows, source="windows")
     if not 0.0 <= validation_split < 1.0:
         raise ValueError(f"validation_split must be in [0.0, 1.0), got {validation_split}")
@@ -122,7 +165,11 @@ def split_train_validation(
 
 
 def fit_standard_scaler(windows: np.ndarray) -> tuple[list[float], list[float]]:
-    """Fit single-variable standard normalization parameters."""
+    """Fit single-variable standard normalization parameters.
+
+    只在训练窗口上计算 mean/std，避免验证数据或异常数据泄漏进归一化参数。
+    返回 list 而不是 numpy 类型，是为了后续可以直接写入 `meta.json`。
+    """
     windows = _as_valid_windows(windows, source="windows")
     mean = float(np.mean(windows, dtype=np.float64))
     std = float(np.std(windows, dtype=np.float64))
@@ -134,7 +181,13 @@ def fit_standard_scaler(windows: np.ndarray) -> tuple[list[float], list[float]]:
 
 
 def transform_standard(windows: np.ndarray, mean: list[float] | np.ndarray, std: list[float] | np.ndarray) -> np.ndarray:
-    """Apply single-variable standard normalization to windows."""
+    """Apply single-variable standard normalization to windows.
+
+    训练端和 runtime 端都必须使用同一公式：
+        x_norm = (x - mean) / std
+
+    AutoEncoder 的 MSE 阈值是在归一化空间中计算的，所以 runtime 也必须先归一化。
+    """
     windows = _as_valid_windows(windows, source="windows")
     mean_array = np.asarray(mean, dtype=np.float32)
     std_array = np.asarray(std, dtype=np.float32)
@@ -156,7 +209,14 @@ def prepare_train_validation(
     validation_split: float,
     random_seed: int,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, list[float] | str]]:
-    """Split windows and normalize train/validation data with train-fitted parameters."""
+    """Split windows and normalize train/validation data with train-fitted parameters.
+
+    这是训练前预处理的组合函数：
+    1. 切分 train/validation；
+    2. 只用 train fit scaler；
+    3. 用同一组 mean/std transform train 和 validation；
+    4. 返回 normalization 字典，后续写入 `meta.json`。
+    """
     train_windows, validation_windows = split_train_validation(windows, validation_split, random_seed)
     mean, std = fit_standard_scaler(train_windows)
     train_windows_norm = transform_standard(train_windows, mean, std)
@@ -170,6 +230,11 @@ def prepare_train_validation(
 
 
 def _resolve_data_path(config: dict[str, Any], project_root: Path, input_format: str) -> Path:
+    """Resolve the input data file from config.
+
+    如果配置了 data.input_path，则优先使用它；否则在 paths.data_dir 下查找唯一
+    一个匹配后缀的文件。发现多个文件时要求显式配置，避免误用数据集。
+    """
     paths_config = config.get("paths", {})
     data_config = config.get("data", {})
     configured_path = data_config.get("input_path")
@@ -197,6 +262,7 @@ def _resolve_data_path(config: dict[str, Any], project_root: Path, input_format:
 
 
 def _as_valid_series(values: Any, source: Path | str) -> np.ndarray:
+    """Convert input values to a valid one-dimensional float32 series."""
     series = np.asarray(values, dtype=np.float32)
     if series.ndim != 1:
         raise ValueError(f"Expected one-dimensional series from {source}, got shape {series.shape}")
@@ -208,6 +274,7 @@ def _as_valid_series(values: Any, source: Path | str) -> np.ndarray:
 
 
 def _as_valid_windows(values: Any, source: Path | str) -> np.ndarray:
+    """Convert input values to a valid two-dimensional float32 window matrix."""
     windows = np.asarray(values, dtype=np.float32)
     if windows.ndim != 2:
         raise ValueError(f"Expected two-dimensional windows from {source}, got shape {windows.shape}")
